@@ -1,66 +1,112 @@
-import React from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, RefreshControl } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 
-const agendamentos = [
-  {
-    id: "1",
-    tipoAtendimento: "Consulta Individual",
-    nome: "João Silva",
-    conjuge: "Maria Silva",
-    mae: "Ana Silva",
-    pai: "Carlos Silva",
-    idade: 30,
-    nascimento: "1993-05-15",
-    cpf: "123.456.789-00",
-    sexo: "Masculino",
-    telefone: "(11) 1234-5678",
-    celular: "(11) 98765-4321",
-    disponibilidade: "Segunda, Quarta | Manhã, Tarde",
-  },
-  {
-    id: "2",
-    tipoAtendimento: "Terapia de Casal",
-    nome: "Ana Costa",
-    conjuge: "Pedro Costa",
-    mae: "Mariana Costa",
-    pai: "José Costa",
-    idade: 28,
-    nascimento: "1995-08-20",
-    cpf: "987.654.321-00",
-    sexo: "Feminino",
-    telefone: "(11) 8765-4321",
-    celular: "(11) 99876-5432",
-    disponibilidade: "Terça, Quinta | Tarde",
-  },
-  
-];
-
 export default function AgendamentosScreen() {
+  const [agendamentos, setAgendamentos] = useState([]);
+  const [filteredAgendamentos, setFilteredAgendamentos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    async function fetchAgendamentos() {
+      try {
+        const response = await fetch("https://iptsisteste.store/app/controllers/ApiController.php?chave=123");
+        const json = await response.json();
+
+        if (json.success) {
+          setAgendamentos(json.data);
+          setFilteredAgendamentos(json.data);
+        } else {
+          console.error("Erro ao buscar dados:", json.error);
+        }
+      } catch (error) {
+        console.error("Erro na requisição:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchAgendamentos();
+  }, []);
+
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    if (query.trim() === "") {
+      setFilteredAgendamentos(agendamentos);
+    } else {
+      const filtered = agendamentos.filter((item) =>
+        item.nomeCompleto.toLowerCase().includes(query.toLowerCase())
+      );
+      setFilteredAgendamentos(filtered);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const response = await fetch("https://iptsisteste.store/app/controllers/ApiController.php?chave=123");
+      const json = await response.json();
+      
+      if (json.success) {
+        setAgendamentos(json.data);
+        setFilteredAgendamentos(json.data);
+      } else {
+        console.error("Erro ao buscar dados:", json.error);
+      }
+    } catch (error) {
+      console.error("Erro na requisição:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#fb7d45" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Agendamentos</Text>
-      <FlatList
-        data={agendamentos}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.atendimento}>{item.tipoAtendimento}</Text>
-            <Text style={styles.nome}>{item.nome}</Text>
-            <Text style={styles.detalhes}>Idade: {item.idade} anos</Text>
-            <Text style={styles.detalhes}>Nascimento: {item.nascimento}</Text>
-            <Text style={styles.detalhes}>Disponibilidade: {item.disponibilidade}</Text>
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.btnEdit}>
-                <FontAwesome name="edit" size={20} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.btnDelete}>
-                <FontAwesome name="trash" size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+      <TextInput
+        style={styles.input}
+        placeholder="Buscar por nome"
+        value={searchQuery}
+        onChangeText={handleSearch}
       />
+      {filteredAgendamentos.length === 0 ? (
+        <Text style={styles.noData}>Nenhum agendamento encontrado.</Text>
+      ) : (
+        <FlatList
+          data={filteredAgendamentos}
+          keyExtractor={(item) => item.idInscricao.toString()}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <Text style={styles.atendimento}>{item.dsServico}</Text>
+              <Text style={styles.nome}>{item.nomeCompleto || "Nome não informado"}</Text>
+              <Text style={styles.detalhes}>Idade: {item.idade} anos</Text>
+              <Text style={styles.detalhes}>Nascimento: {item.dataNascimento}</Text>
+              <Text style={styles.detalhes}>Disponibilidade: {item.disponibilidade}</Text>
+              <View style={styles.actions}>
+                <TouchableOpacity style={styles.btnEdit}>
+                  <FontAwesome name="edit" size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.btnDelete}>
+                  <FontAwesome name="trash" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -74,9 +120,27 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: '#403454',
+    color: "#403454",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 10,
+  },
+  input: {
+    backgroundColor: "#fff",
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 15,
+    borderColor: "#ccc",
+    borderWidth: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  noData: {
+    fontSize: 16,
+    textAlign: "center",
+    color: "#667",
   },
   card: {
     backgroundColor: "#fff",
